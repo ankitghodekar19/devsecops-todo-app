@@ -1,0 +1,26 @@
+# Node
+node_modules/
+npm-debug.log
+dist/
+
+# Environment files
+.env
+*.env
+
+# Docker
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Kubernetes secrets
+*-secret.yaml
+
+# Terraform (future)
+.terraform/
+*.tfstate
+*.tfstate.backup
