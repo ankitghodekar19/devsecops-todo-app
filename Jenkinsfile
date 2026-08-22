@@ -16,7 +16,6 @@ pipeline {
             }
         }
 
-
         stage('Backend Test') {
             steps {
                 dir('app') {
@@ -27,7 +26,6 @@ pipeline {
                 }
             }
         }
-
 
         stage('Frontend Build') {
             steps {
@@ -40,7 +38,6 @@ pipeline {
             }
         }
 
-
         stage('Docker Build') {
             steps {
                 sh '''
@@ -50,16 +47,26 @@ pipeline {
             }
         }
 
-    }
+        stage('Trivy Security Scan') {
+            steps {
+                sh '''
+                echo "Scanning backend image..."
+                trivy image --severity HIGH,CRITICAL --exit-code 1 $BACKEND_IMAGE:latest
 
+                echo "Scanning frontend image..."
+                trivy image --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMAGE:latest
+                '''
+            }
+        }
+    }
 
     post {
         success {
-            echo "CI Pipeline Completed Successfully"
+            echo "DevSecOps CI Pipeline Completed Successfully"
         }
 
         failure {
-            echo "Pipeline Failed"
+            echo "Pipeline Failed - Security vulnerabilities or build/test failure detected"
         }
     }
 }
