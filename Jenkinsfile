@@ -1,9 +1,10 @@
+```groovy
 pipeline {
 
     agent any
 
     environment {
-        BACKEND_IMAGE = "ankitghodekar/devsecops-api"
+        BACKEND_IMAGE  = "ankitghodekar/devsecops-api"
         FRONTEND_IMAGE = "ankitghodekar/devsecops-frontend"
     }
 
@@ -20,8 +21,8 @@ pipeline {
             steps {
                 dir('app') {
                     sh '''
-                    npm install
-                    npm test
+                        npm install
+                        npm test
                     '''
                 }
             }
@@ -31,8 +32,8 @@ pipeline {
             steps {
                 dir('frontend') {
                     sh '''
-                    npm install
-                    npm run build
+                        npm install
+                        npm run build
                     '''
                 }
             }
@@ -41,8 +42,15 @@ pipeline {
         stage('Docker Build') {
             steps {
                 sh '''
-                docker build -t $BACKEND_IMAGE:latest ./app
-                docker build -t $FRONTEND_IMAGE:latest ./frontend
+                    echo "Building backend image..."
+                    docker build -t $BACKEND_IMAGE:$BUILD_NUMBER ./app
+                    docker tag $BACKEND_IMAGE:$BUILD_NUMBER $BACKEND_IMAGE:latest
+
+                    echo "Building frontend image..."
+                    docker build -t $FRONTEND_IMAGE:$BUILD_NUMBER ./frontend
+                    docker tag $FRONTEND_IMAGE:$BUILD_NUMBER $FRONTEND_IMAGE:latest
+
+                    echo "Docker images built successfully."
                 '''
             }
         }
@@ -50,23 +58,83 @@ pipeline {
         stage('Trivy Security Scan') {
             steps {
                 sh '''
-                echo "Scanning backend image..."
-                trivy image --severity HIGH,CRITICAL --exit-code 1 $BACKEND_IMAGE:latest
+                    echo "========================================"
+                    echo "Scanning Backend Image"
+                    echo "========================================"
 
-                echo "Scanning frontend image..."
-                trivy image --severity HIGH,CRITICAL --exit-code 1 $FRONTEND_IMAGE:latest
+                    trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        --no-progress \
+                        $BACKEND_IMAGE:$BUILD_NUMBER
+
+                    echo "Backend security scan passed."
+
+                    echo "========================================"
+                    echo "Scanning Frontend Image"
+                    echo "========================================"
+
+                    trivy image \
+                        --severity HIGH,CRITICAL \
+                        --exit-code 1 \
+                        --no-progress \
+                        $FRONTEND_IMAGE:$BUILD_NUMBER
+
+                    echo "Frontend security scan passed."
                 '''
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | docker login \
+                            -u "$DOCKER_USERNAME" \
+                            --password-stdin
+
+                        echo "Pushing backend image..."
+                        docker push $BACKEND_IMAGE:$BUILD_NUMBER
+                        docker push $BACKEND_IMAGE:latest
+
+                        echo "Pushing frontend image..."
+                        docker push $FRONTEND_IMAGE:$BUILD_NUMBER
+                        docker push $FRONTEND_IMAGE:latest
+
+                        docker logout
+
+                        echo "Images pushed successfully."
+                    '''
+                }
             }
         }
     }
 
     post {
+
         success {
-            echo "DevSecOps CI Pipeline Completed Successfully"
+            echo "========================================"
+            echo "DevSecOps CI/CD Pipeline SUCCESS"
+            echo "========================================"
+            echo "Tests: PASSED"
+            echo "Build: PASSED"
+            echo "Trivy: PASSED"
+            echo "Docker Hub: PUSHED"
         }
 
         failure {
-            echo "Pipeline Failed - Security vulnerabilities or build/test failure detected"
+            echo "========================================"
+            echo "DevSecOps Pipeline FAILED"
+            echo "========================================"
+            echo "Check the failed stage above."
         }
     }
 }
+```
+
