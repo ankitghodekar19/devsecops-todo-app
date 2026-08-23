@@ -1,9 +1,7 @@
 pipeline {
 
     agent any
-    tools {
-        sonarQube 'SonarScanner'
-    }
+
     environment {
         BACKEND_IMAGE  = "ankitghodekar/devsecops-api"
         FRONTEND_IMAGE = "ankitghodekar/devsecops-frontend"
@@ -33,6 +31,9 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh '''
+                        export PATH="$PATH:$(tool 'SonarScanner')/bin"
+
+                        echo "Running SonarQube analysis..."
                         sonar-scanner
                     '''
                 }
