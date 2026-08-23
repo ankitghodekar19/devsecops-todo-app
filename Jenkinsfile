@@ -1,7 +1,9 @@
 pipeline {
 
     agent any
-
+    tools {
+        sonarQube 'SonarScanner'
+    }
     environment {
         BACKEND_IMAGE  = "ankitghodekar/devsecops-api"
         FRONTEND_IMAGE = "ankitghodekar/devsecops-frontend"
