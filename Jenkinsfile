@@ -1,4 +1,3 @@
-
 pipeline {
 
     agent any
@@ -23,6 +22,16 @@ pipeline {
                     sh '''
                         npm install
                         npm test
+                    '''
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh '''
+                        sonar-scanner
                     '''
                 }
             }
@@ -123,6 +132,7 @@ pipeline {
             echo "DevSecOps CI/CD Pipeline SUCCESS"
             echo "========================================"
             echo "Tests: PASSED"
+            echo "SonarQube: PASSED"
             echo "Build: PASSED"
             echo "Trivy: PASSED"
             echo "Docker Hub: PUSHED"
@@ -136,4 +146,3 @@ pipeline {
         }
     }
 }
-
