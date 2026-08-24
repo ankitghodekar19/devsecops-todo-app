@@ -12,8 +12,11 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'main',
+                git(
+                    branch: 'main',
+                    credentialsId: 'github-credentials',
                     url: 'https://github.com/ankitghodekar19/devsecops-todo-app.git'
+                )
             }
         }
 
@@ -81,7 +84,6 @@ EOF
                         echo "Yarn version:"
                         yarn --version
 
-
                         echo "========================================"
                         echo "Running OWASP Dependency-Check..."
                         echo "========================================"
@@ -137,7 +139,6 @@ EOF
                         $BACKEND_IMAGE:$BUILD_NUMBER \
                         $BACKEND_IMAGE:latest
 
-
                     echo "========================================"
                     echo "Building Frontend Image"
                     echo "========================================"
@@ -149,7 +150,6 @@ EOF
                     docker tag \
                         $FRONTEND_IMAGE:$BUILD_NUMBER \
                         $FRONTEND_IMAGE:latest
-
 
                     echo "Docker images built successfully."
                 '''
@@ -170,7 +170,6 @@ EOF
                         $BACKEND_IMAGE:$BUILD_NUMBER
 
                     echo "Backend security scan passed."
-
 
                     echo "========================================"
                     echo "Scanning Frontend Image"
@@ -203,7 +202,6 @@ EOF
                             -u "$DOCKER_USERNAME" \
                             --password-stdin
 
-
                         echo "Pushing backend image..."
 
                         docker push \
@@ -211,7 +209,6 @@ EOF
 
                         docker push \
                             $BACKEND_IMAGE:latest
-
 
                         echo "Pushing frontend image..."
 
@@ -221,12 +218,63 @@ EOF
                         docker push \
                             $FRONTEND_IMAGE:latest
 
-
                         docker logout
 
                         echo "Images pushed successfully."
                     '''
                 }
+            }
+        }
+
+        stage('Update GitOps Manifests') {
+            steps {
+                sh '''
+                    echo "========================================"
+                    echo "Updating GitOps image tags"
+                    echo "========================================"
+
+                    sed -i "s|ankitghodekar/devsecops-api:.*|ankitghodekar/devsecops-api:$BUILD_NUMBER|" \
+                        gitops/backend-deployment.yaml
+
+                    sed -i "s|ankitghodekar/devsecops-frontend:.*|ankitghodekar/devsecops-frontend:$BUILD_NUMBER|" \
+                        gitops/frontend-deployment.yaml
+
+                    echo "========================================"
+                    echo "Updated Backend Image"
+                    echo "========================================"
+
+                    grep "image:" gitops/backend-deployment.yaml
+
+                    echo "========================================"
+                    echo "Updated Frontend Image"
+                    echo "========================================"
+
+                    grep "image:" gitops/frontend-deployment.yaml
+
+                    echo "========================================"
+                    echo "Git configuration"
+                    echo "========================================"
+
+                    git config user.name "Jenkins"
+                    git config user.email "jenkins@localhost"
+
+                    git add \
+                        gitops/backend-deployment.yaml \
+                        gitops/frontend-deployment.yaml
+
+                    git commit \
+                        -m "Update images to build $BUILD_NUMBER" || true
+
+                    echo "========================================"
+                    echo "Pushing GitOps changes to GitHub"
+                    echo "========================================"
+
+                    git push origin main
+
+                    echo "========================================"
+                    echo "GitOps manifests updated successfully"
+                    echo "========================================"
+                '''
             }
         }
     }
@@ -244,6 +292,7 @@ EOF
             echo "Build: PASSED"
             echo "Trivy: PASSED"
             echo "Docker Hub: PUSHED"
+            echo "GitOps: UPDATED"
             echo "========================================"
         }
 
