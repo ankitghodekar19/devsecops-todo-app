@@ -1,3 +1,4 @@
+
 pipeline {
 
     agent any
@@ -20,6 +21,10 @@ pipeline {
             steps {
                 dir('app') {
                     sh '''
+                        echo "========================================"
+                        echo "Running Backend Tests"
+                        echo "========================================"
+
                         npm install
                         npm test
                     '''
@@ -35,10 +40,12 @@ pipeline {
                     withSonarQubeEnv('SonarQube') {
                         sh """
                             echo "========================================"
-                            echo "Running SonarQube analysis..."
+                            echo "Running SonarQube Analysis"
                             echo "========================================"
 
                             ${scannerHome}/bin/sonar-scanner
+
+                            echo "SonarQube analysis completed."
                         """
                     }
                 }
@@ -52,8 +59,11 @@ pipeline {
 
                     sh """
                         echo "========================================"
-                        echo "Running OWASP Dependency-Check..."
+                        echo "Running OWASP Dependency-Check"
                         echo "========================================"
+
+                        rm -rf dependency-check-report
+                        mkdir -p dependency-check-report
 
                         ${dependencyCheckHome}/bin/dependency-check.sh \
                             --project "DevSecOps Todo App" \
@@ -63,15 +73,19 @@ pipeline {
                             --out dependency-check-report \
                             --failOnCVSS 7
 
+                        echo "========================================"
                         echo "OWASP Dependency-Check completed."
+                        echo "========================================"
                     """
                 }
             }
 
             post {
                 always {
-                    archiveArtifacts artifacts: 'dependency-check-report/*',
+                    archiveArtifacts(
+                        artifacts: 'dependency-check-report/*',
                         allowEmptyArchive: true
+                    )
                 }
             }
         }
@@ -80,8 +94,14 @@ pipeline {
             steps {
                 dir('frontend') {
                     sh '''
+                        echo "========================================"
+                        echo "Building Frontend"
+                        echo "========================================"
+
                         npm install
                         npm run build
+
+                        echo "Frontend build completed."
                     '''
                 }
             }
@@ -91,7 +111,7 @@ pipeline {
             steps {
                 sh '''
                     echo "========================================"
-                    echo "Building Backend Image"
+                    echo "Building Backend Docker Image"
                     echo "========================================"
 
                     docker build \
@@ -104,7 +124,7 @@ pipeline {
 
 
                     echo "========================================"
-                    echo "Building Frontend Image"
+                    echo "Building Frontend Docker Image"
                     echo "========================================"
 
                     docker build \
@@ -116,7 +136,9 @@ pipeline {
                         $FRONTEND_IMAGE:latest
 
 
+                    echo "========================================"
                     echo "Docker images built successfully."
+                    echo "========================================"
                 '''
             }
         }
@@ -125,7 +147,7 @@ pipeline {
             steps {
                 sh '''
                     echo "========================================"
-                    echo "Scanning Backend Image"
+                    echo "Scanning Backend Image with Trivy"
                     echo "========================================"
 
                     trivy image \
@@ -138,7 +160,7 @@ pipeline {
 
 
                     echo "========================================"
-                    echo "Scanning Frontend Image"
+                    echo "Scanning Frontend Image with Trivy"
                     echo "========================================"
 
                     trivy image \
@@ -161,13 +183,20 @@ pipeline {
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
                 ]) {
+
                     sh '''
+                        echo "========================================"
+                        echo "Logging in to Docker Hub"
+                        echo "========================================"
+
                         echo "$DOCKER_PASSWORD" | docker login \
                             -u "$DOCKER_USERNAME" \
                             --password-stdin
 
 
-                        echo "Pushing backend image..."
+                        echo "========================================"
+                        echo "Pushing Backend Image"
+                        echo "========================================"
 
                         docker push \
                             $BACKEND_IMAGE:$BUILD_NUMBER
@@ -176,7 +205,9 @@ pipeline {
                             $BACKEND_IMAGE:latest
 
 
-                        echo "Pushing frontend image..."
+                        echo "========================================"
+                        echo "Pushing Frontend Image"
+                        echo "========================================"
 
                         docker push \
                             $FRONTEND_IMAGE:$BUILD_NUMBER
@@ -187,7 +218,9 @@ pipeline {
 
                         docker logout
 
+                        echo "========================================"
                         echo "Images pushed successfully."
+                        echo "========================================"
                     '''
                 }
             }
@@ -202,8 +235,9 @@ pipeline {
             echo "========================================"
             echo "Tests: PASSED"
             echo "SonarQube: PASSED"
-            echo "OWASP: PASSED"
-            echo "Build: PASSED"
+            echo "OWASP Dependency-Check: PASSED"
+            echo "Frontend Build: PASSED"
+            echo "Docker Build: PASSED"
             echo "Trivy: PASSED"
             echo "Docker Hub: PUSHED"
             echo "========================================"
