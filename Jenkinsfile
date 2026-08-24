@@ -29,13 +29,18 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh '''
-                        export PATH="$PATH:$(tool 'SonarScanner')/bin"
+                script {
+                    def scannerHome = tool 'SonarScanner'
 
-                        echo "Running SonarQube analysis..."
-                        sonar-scanner
-                    '''
+                    withSonarQubeEnv('SonarQube') {
+                        sh """
+                            echo "========================================"
+                            echo "Running SonarQube analysis..."
+                            echo "========================================"
+
+                            ${scannerHome}/bin/sonar-scanner
+                        """
+                    }
                 }
             }
         }
@@ -55,12 +60,26 @@ pipeline {
             steps {
                 sh '''
                     echo "Building backend image..."
-                    docker build -t $BACKEND_IMAGE:$BUILD_NUMBER ./app
-                    docker tag $BACKEND_IMAGE:$BUILD_NUMBER $BACKEND_IMAGE:latest
+
+                    docker build \
+                        -t $BACKEND_IMAGE:$BUILD_NUMBER \
+                        ./app
+
+                    docker tag \
+                        $BACKEND_IMAGE:$BUILD_NUMBER \
+                        $BACKEND_IMAGE:latest
+
 
                     echo "Building frontend image..."
-                    docker build -t $FRONTEND_IMAGE:$BUILD_NUMBER ./frontend
-                    docker tag $FRONTEND_IMAGE:$BUILD_NUMBER $FRONTEND_IMAGE:latest
+
+                    docker build \
+                        -t $FRONTEND_IMAGE:$BUILD_NUMBER \
+                        ./frontend
+
+                    docker tag \
+                        $FRONTEND_IMAGE:$BUILD_NUMBER \
+                        $FRONTEND_IMAGE:latest
+
 
                     echo "Docker images built successfully."
                 '''
@@ -81,6 +100,7 @@ pipeline {
                         $BACKEND_IMAGE:$BUILD_NUMBER
 
                     echo "Backend security scan passed."
+
 
                     echo "========================================"
                     echo "Scanning Frontend Image"
@@ -111,13 +131,24 @@ pipeline {
                             -u "$DOCKER_USERNAME" \
                             --password-stdin
 
+
                         echo "Pushing backend image..."
-                        docker push $BACKEND_IMAGE:$BUILD_NUMBER
-                        docker push $BACKEND_IMAGE:latest
+
+                        docker push \
+                            $BACKEND_IMAGE:$BUILD_NUMBER
+
+                        docker push \
+                            $BACKEND_IMAGE:latest
+
 
                         echo "Pushing frontend image..."
-                        docker push $FRONTEND_IMAGE:$BUILD_NUMBER
-                        docker push $FRONTEND_IMAGE:latest
+
+                        docker push \
+                            $FRONTEND_IMAGE:$BUILD_NUMBER
+
+                        docker push \
+                            $FRONTEND_IMAGE:latest
+
 
                         docker logout
 
@@ -139,6 +170,7 @@ pipeline {
             echo "Build: PASSED"
             echo "Trivy: PASSED"
             echo "Docker Hub: PUSHED"
+            echo "========================================"
         }
 
         failure {
@@ -146,6 +178,7 @@ pipeline {
             echo "DevSecOps Pipeline FAILED"
             echo "========================================"
             echo "Check the failed stage above."
+            echo "========================================"
         }
     }
 }
