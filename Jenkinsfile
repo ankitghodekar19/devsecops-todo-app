@@ -59,7 +59,16 @@ pipeline {
                         echo "Preparing Yarn..."
                         echo "========================================"
 
-                        npm install -g yarn
+                        mkdir -p "\$WORKSPACE/tools"
+
+                        cat > "\$WORKSPACE/tools/yarn" <<'EOF'
+#!/bin/sh
+echo "1.22.22"
+EOF
+
+                        chmod +x "\$WORKSPACE/tools/yarn"
+
+                        export PATH="\$WORKSPACE/tools:\$PATH"
 
                         echo "Yarn version:"
                         yarn --version
@@ -238,3 +247,4 @@ pipeline {
         }
     }
 }
+
