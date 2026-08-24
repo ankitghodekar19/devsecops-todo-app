@@ -1,4 +1,4 @@
-
+```groovy
 pipeline {
 
     agent any
@@ -21,10 +21,6 @@ pipeline {
             steps {
                 dir('app') {
                     sh '''
-                        echo "========================================"
-                        echo "Running Backend Tests"
-                        echo "========================================"
-
                         npm install
                         npm test
                     '''
@@ -35,17 +31,17 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 script {
+
                     def scannerHome = tool 'SonarScanner'
 
                     withSonarQubeEnv('SonarQube') {
+
                         sh """
                             echo "========================================"
-                            echo "Running SonarQube Analysis"
+                            echo "Running SonarQube analysis..."
                             echo "========================================"
 
                             ${scannerHome}/bin/sonar-scanner
-
-                            echo "SonarQube analysis completed."
                         """
                     }
                 }
@@ -55,14 +51,24 @@ pipeline {
         stage('OWASP Dependency-Check') {
             steps {
                 script {
+
                     def dependencyCheckHome = tool 'Dependency-Check'
 
                     sh """
                         echo "========================================"
-                        echo "Running OWASP Dependency-Check"
+                        echo "Preparing Yarn..."
                         echo "========================================"
 
-                        rm -rf dependency-check-report
+                        npm install -g yarn
+
+                        echo "Yarn version:"
+                        yarn --version
+
+
+                        echo "========================================"
+                        echo "Running OWASP Dependency-Check..."
+                        echo "========================================"
+
                         mkdir -p dependency-check-report
 
                         ${dependencyCheckHome}/bin/dependency-check.sh \
@@ -82,10 +88,8 @@ pipeline {
 
             post {
                 always {
-                    archiveArtifacts(
-                        artifacts: 'dependency-check-report/*',
+                    archiveArtifacts artifacts: 'dependency-check-report/*',
                         allowEmptyArchive: true
-                    )
                 }
             }
         }
@@ -94,14 +98,8 @@ pipeline {
             steps {
                 dir('frontend') {
                     sh '''
-                        echo "========================================"
-                        echo "Building Frontend"
-                        echo "========================================"
-
                         npm install
                         npm run build
-
-                        echo "Frontend build completed."
                     '''
                 }
             }
@@ -111,7 +109,7 @@ pipeline {
             steps {
                 sh '''
                     echo "========================================"
-                    echo "Building Backend Docker Image"
+                    echo "Building Backend Image"
                     echo "========================================"
 
                     docker build \
@@ -124,7 +122,7 @@ pipeline {
 
 
                     echo "========================================"
-                    echo "Building Frontend Docker Image"
+                    echo "Building Frontend Image"
                     echo "========================================"
 
                     docker build \
@@ -136,9 +134,7 @@ pipeline {
                         $FRONTEND_IMAGE:latest
 
 
-                    echo "========================================"
                     echo "Docker images built successfully."
-                    echo "========================================"
                 '''
             }
         }
@@ -147,7 +143,7 @@ pipeline {
             steps {
                 sh '''
                     echo "========================================"
-                    echo "Scanning Backend Image with Trivy"
+                    echo "Scanning Backend Image"
                     echo "========================================"
 
                     trivy image \
@@ -160,7 +156,7 @@ pipeline {
 
 
                     echo "========================================"
-                    echo "Scanning Frontend Image with Trivy"
+                    echo "Scanning Frontend Image"
                     echo "========================================"
 
                     trivy image \
@@ -176,6 +172,7 @@ pipeline {
 
         stage('Push to Docker Hub') {
             steps {
+
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'dockerhub-credentials',
@@ -185,18 +182,12 @@ pipeline {
                 ]) {
 
                     sh '''
-                        echo "========================================"
-                        echo "Logging in to Docker Hub"
-                        echo "========================================"
-
                         echo "$DOCKER_PASSWORD" | docker login \
                             -u "$DOCKER_USERNAME" \
                             --password-stdin
 
 
-                        echo "========================================"
-                        echo "Pushing Backend Image"
-                        echo "========================================"
+                        echo "Pushing backend image..."
 
                         docker push \
                             $BACKEND_IMAGE:$BUILD_NUMBER
@@ -205,9 +196,7 @@ pipeline {
                             $BACKEND_IMAGE:latest
 
 
-                        echo "========================================"
-                        echo "Pushing Frontend Image"
-                        echo "========================================"
+                        echo "Pushing frontend image..."
 
                         docker push \
                             $FRONTEND_IMAGE:$BUILD_NUMBER
@@ -218,9 +207,7 @@ pipeline {
 
                         docker logout
 
-                        echo "========================================"
                         echo "Images pushed successfully."
-                        echo "========================================"
                     '''
                 }
             }
@@ -235,9 +222,8 @@ pipeline {
             echo "========================================"
             echo "Tests: PASSED"
             echo "SonarQube: PASSED"
-            echo "OWASP Dependency-Check: PASSED"
-            echo "Frontend Build: PASSED"
-            echo "Docker Build: PASSED"
+            echo "OWASP: PASSED"
+            echo "Build: PASSED"
             echo "Trivy: PASSED"
             echo "Docker Hub: PUSHED"
             echo "========================================"
@@ -252,3 +238,5 @@ pipeline {
         }
     }
 }
+```
+
