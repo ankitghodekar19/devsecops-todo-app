@@ -45,6 +45,37 @@ pipeline {
             }
         }
 
+        stage('OWASP Dependency-Check') {
+            steps {
+                script {
+                    def dependencyCheckHome = tool 'Dependency-Check'
+
+                    sh """
+                        echo "========================================"
+                        echo "Running OWASP Dependency-Check..."
+                        echo "========================================"
+
+                        ${dependencyCheckHome}/bin/dependency-check.sh \
+                            --project "DevSecOps Todo App" \
+                            --scan ./app \
+                            --format HTML \
+                            --format XML \
+                            --out dependency-check-report \
+                            --failOnCVSS 7
+
+                        echo "OWASP Dependency-Check completed."
+                    """
+                }
+            }
+
+            post {
+                always {
+                    archiveArtifacts artifacts: 'dependency-check-report/*',
+                        allowEmptyArchive: true
+                }
+            }
+        }
+
         stage('Frontend Build') {
             steps {
                 dir('frontend') {
@@ -59,7 +90,9 @@ pipeline {
         stage('Docker Build') {
             steps {
                 sh '''
-                    echo "Building backend image..."
+                    echo "========================================"
+                    echo "Building Backend Image"
+                    echo "========================================"
 
                     docker build \
                         -t $BACKEND_IMAGE:$BUILD_NUMBER \
@@ -70,7 +103,9 @@ pipeline {
                         $BACKEND_IMAGE:latest
 
 
-                    echo "Building frontend image..."
+                    echo "========================================"
+                    echo "Building Frontend Image"
+                    echo "========================================"
 
                     docker build \
                         -t $FRONTEND_IMAGE:$BUILD_NUMBER \
@@ -167,6 +202,7 @@ pipeline {
             echo "========================================"
             echo "Tests: PASSED"
             echo "SonarQube: PASSED"
+            echo "OWASP: PASSED"
             echo "Build: PASSED"
             echo "Trivy: PASSED"
             echo "Docker Hub: PUSHED"
