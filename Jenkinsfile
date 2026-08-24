@@ -48,6 +48,14 @@ pipeline {
             }
         }
 
+        stage('SonarQube Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
         stage('OWASP Dependency-Check') {
             steps {
                 script {
@@ -230,7 +238,8 @@ EOF
             echo "DevSecOps CI/CD Pipeline SUCCESS"
             echo "========================================"
             echo "Tests: PASSED"
-            echo "SonarQube: PASSED"
+            echo "SonarQube Analysis: PASSED"
+            echo "SonarQube Quality Gate: PASSED"
             echo "OWASP: PASSED"
             echo "Build: PASSED"
             echo "Trivy: PASSED"
