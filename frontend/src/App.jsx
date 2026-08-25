@@ -98,7 +98,7 @@ function App() {
         <h1>DevSecOps Todo App</h1>
 
         <p className="subtitle">
-          React + Node.js + MySQL
+          React + Node.js + MySQL | CI/CD Pipeline Test
         </p>
 
         <form onSubmit={addTodo} className="todo-form">
