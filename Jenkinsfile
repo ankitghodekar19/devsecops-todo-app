@@ -1,4 +1,3 @@
-
 pipeline {
 
     agent any
@@ -20,6 +19,7 @@ pipeline {
             }
         }
 
+
         stage('Backend Test') {
             steps {
                 dir('app') {
@@ -31,6 +31,7 @@ pipeline {
             }
         }
 
+
         stage('SonarQube Analysis') {
             steps {
                 script {
@@ -40,9 +41,7 @@ pipeline {
                     withSonarQubeEnv('SonarQube') {
 
                         sh """
-                            echo "========================================"
                             echo "Running SonarQube analysis..."
-                            echo "========================================"
 
                             ${scannerHome}/bin/sonar-scanner
                         """
@@ -51,71 +50,57 @@ pipeline {
             }
         }
 
+
         stage('SonarQube Quality Gate') {
             steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
+                timeout(time:5, unit:'MINUTES') {
+                    waitForQualityGate abortPipeline:true
                 }
             }
         }
 
+
         stage('OWASP Dependency-Check') {
+
             steps {
+
                 script {
 
                     def dependencyCheckHome = tool 'Dependency-Check'
 
                     sh """
-                        echo "========================================"
-                        echo "Preparing Yarn..."
-                        echo "========================================"
 
-                        mkdir -p "\$WORKSPACE/tools"
+                    mkdir -p dependency-check-report
 
-                        cat > "\$WORKSPACE/tools/yarn" <<'EOF'
-#!/bin/sh
-echo "1.22.22"
-EOF
 
-                        chmod +x "\$WORKSPACE/tools/yarn"
+                    ${dependencyCheckHome}/bin/dependency-check.sh \
+                    --project "DevSecOps Todo App" \
+                    --scan ./app \
+                    --format HTML \
+                    --format XML \
+                    --out dependency-check-report \
+                    --failOnCVSS 7
 
-                        export PATH="\$WORKSPACE/tools:\$PATH"
 
-                        echo "Yarn version:"
-                        yarn --version
-
-                        echo "========================================"
-                        echo "Running OWASP Dependency-Check..."
-                        echo "========================================"
-
-                        mkdir -p dependency-check-report
-
-                        ${dependencyCheckHome}/bin/dependency-check.sh \
-                            --project "DevSecOps Todo App" \
-                            --scan ./app \
-                            --format HTML \
-                            --format XML \
-                            --out dependency-check-report \
-                            --failOnCVSS 7
-
-                        echo "========================================"
-                        echo "OWASP Dependency-Check completed."
-                        echo "========================================"
                     """
                 }
             }
 
             post {
                 always {
-                    archiveArtifacts artifacts: 'dependency-check-report/*',
-                        allowEmptyArchive: true
+                    archiveArtifacts artifacts:'dependency-check-report/*',
+                    allowEmptyArchive:true
                 }
             }
         }
 
+
         stage('Frontend Build') {
+
             steps {
+
                 dir('frontend') {
+
                     sh '''
                         npm install
                         npm run build
@@ -124,185 +109,219 @@ EOF
             }
         }
 
+
         stage('Docker Build') {
+
             steps {
+
                 sh '''
-                    echo "========================================"
-                    echo "Building Backend Image"
-                    echo "========================================"
 
-                    docker build \
-                        -t $BACKEND_IMAGE:$BUILD_NUMBER \
-                        ./app
+                docker build \
+                -t $BACKEND_IMAGE:$BUILD_NUMBER \
+                ./app
 
-                    docker tag \
-                        $BACKEND_IMAGE:$BUILD_NUMBER \
-                        $BACKEND_IMAGE:latest
 
-                    echo "========================================"
-                    echo "Building Frontend Image"
-                    echo "========================================"
+                docker tag \
+                $BACKEND_IMAGE:$BUILD_NUMBER \
+                $BACKEND_IMAGE:latest
 
-                    docker build \
-                        -t $FRONTEND_IMAGE:$BUILD_NUMBER \
-                        ./frontend
 
-                    docker tag \
-                        $FRONTEND_IMAGE:$BUILD_NUMBER \
-                        $FRONTEND_IMAGE:latest
 
-                    echo "Docker images built successfully."
+                docker build \
+                -t $FRONTEND_IMAGE:$BUILD_NUMBER \
+                ./frontend
+
+
+                docker tag \
+                $FRONTEND_IMAGE:$BUILD_NUMBER \
+                $FRONTEND_IMAGE:latest
+
+
                 '''
             }
         }
+
+
 
         stage('Trivy Security Scan') {
+
             steps {
+
                 sh '''
-                    echo "========================================"
-                    echo "Scanning Backend Image"
-                    echo "========================================"
 
-                    trivy image \
-                        --severity HIGH,CRITICAL \
-                        --exit-code 1 \
-                        --no-progress \
-                        $BACKEND_IMAGE:$BUILD_NUMBER
+                trivy image \
+                --severity HIGH,CRITICAL \
+                --exit-code 1 \
+                --no-progress \
+                $BACKEND_IMAGE:$BUILD_NUMBER
 
-                    echo "Backend security scan passed."
 
-                    echo "========================================"
-                    echo "Scanning Frontend Image"
-                    echo "========================================"
 
-                    trivy image \
-                        --severity HIGH,CRITICAL \
-                        --exit-code 1 \
-                        --no-progress \
-                        $FRONTEND_IMAGE:$BUILD_NUMBER
+                trivy image \
+                --severity HIGH,CRITICAL \
+                --exit-code 1 \
+                --no-progress \
+                $FRONTEND_IMAGE:$BUILD_NUMBER
 
-                    echo "Frontend security scan passed."
+
                 '''
             }
         }
 
+
+
         stage('Push to Docker Hub') {
+
             steps {
 
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
+                        credentialsId:'dockerhub-credentials',
+                        usernameVariable:'DOCKER_USERNAME',
+                        passwordVariable:'DOCKER_PASSWORD'
                     )
                 ]) {
 
-                    sh '''
-                        echo "$DOCKER_PASSWORD" | docker login \
-                            -u "$DOCKER_USERNAME" \
-                            --password-stdin
 
-                        echo "Pushing backend image..."
+                sh '''
 
-                        docker push \
-                            $BACKEND_IMAGE:$BUILD_NUMBER
+                echo "$DOCKER_PASSWORD" | docker login \
+                -u "$DOCKER_USERNAME" \
+                --password-stdin
 
-                        docker push \
-                            $BACKEND_IMAGE:latest
 
-                        echo "Pushing frontend image..."
 
-                        docker push \
-                            $FRONTEND_IMAGE:$BUILD_NUMBER
+                docker push $BACKEND_IMAGE:$BUILD_NUMBER
 
-                        docker push \
-                            $FRONTEND_IMAGE:latest
+                docker push $BACKEND_IMAGE:latest
 
-                        docker logout
 
-                        echo "Images pushed successfully."
-                    '''
+
+                docker push $FRONTEND_IMAGE:$BUILD_NUMBER
+
+                docker push $FRONTEND_IMAGE:latest
+
+
+
+                docker logout
+
+
+                '''
                 }
             }
         }
 
+
+
         stage('Update GitOps Manifests') {
+
             steps {
-                sh '''
-                    echo "========================================"
-                    echo "Updating GitOps image tags"
-                    echo "========================================"
 
-                    sed -i "s|ankitghodekar/devsecops-api:.*|ankitghodekar/devsecops-api:$BUILD_NUMBER|" \
-                        gitops/backend-deployment.yaml
 
-                    sed -i "s|ankitghodekar/devsecops-frontend:.*|ankitghodekar/devsecops-frontend:$BUILD_NUMBER|" \
-                        gitops/frontend-deployment.yaml
+            withCredentials([
+                usernamePassword(
+                    credentialsId:'github-credentials',
+                    usernameVariable:'GIT_USERNAME',
+                    passwordVariable:'GIT_TOKEN'
+                )
+            ]) {
 
-                    echo "========================================"
-                    echo "Updated Backend Image"
-                    echo "========================================"
 
-                    grep "image:" gitops/backend-deployment.yaml
+            sh '''
 
-                    echo "========================================"
-                    echo "Updated Frontend Image"
-                    echo "========================================"
+            echo "Updating GitOps images"
 
-                    grep "image:" gitops/frontend-deployment.yaml
 
-                    echo "========================================"
-                    echo "Git configuration"
-                    echo "========================================"
 
-                    git config user.name "Jenkins"
-                    git config user.email "jenkins@localhost"
+            sed -i \
+            "s|ankitghodekar/devsecops-api:.*|ankitghodekar/devsecops-api:$BUILD_NUMBER|" \
+            gitops/backend-deployment.yaml
 
-                    git add \
-                        gitops/backend-deployment.yaml \
-                        gitops/frontend-deployment.yaml
 
-                    git commit \
-                        -m "Update images to build $BUILD_NUMBER" || true
 
-                    echo "========================================"
-                    echo "Pushing GitOps changes to GitHub"
-                    echo "========================================"
+            sed -i \
+            "s|ankitghodekar/devsecops-frontend:.*|ankitghodekar/devsecops-frontend:$BUILD_NUMBER|" \
+            gitops/frontend-deployment.yaml
 
-                    git push origin main
 
-                    echo "========================================"
-                    echo "GitOps manifests updated successfully"
-                    echo "========================================"
-                '''
+
+            grep image: gitops/backend-deployment.yaml
+
+            grep image: gitops/frontend-deployment.yaml
+
+
+
+            git config user.name "Jenkins"
+
+            git config user.email "jenkins@localhost"
+
+
+
+            git add gitops/backend-deployment.yaml \
+            gitops/frontend-deployment.yaml
+
+
+
+            git commit \
+            -m "Update images to build $BUILD_NUMBER" || true
+
+
+
+            git remote set-url origin \
+            https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/ankitghodekar19/devsecops-todo-app.git
+
+
+
+            git push origin main
+
+
+
+            echo "GitOps update completed"
+
+
+
+            '''
+
+            }
+
             }
         }
+
     }
+
+
 
     post {
 
         success {
-            echo "========================================"
-            echo "DevSecOps CI/CD Pipeline SUCCESS"
-            echo "========================================"
-            echo "Tests: PASSED"
-            echo "SonarQube Analysis: PASSED"
-            echo "SonarQube Quality Gate: PASSED"
-            echo "OWASP: PASSED"
-            echo "Build: PASSED"
-            echo "Trivy: PASSED"
-            echo "Docker Hub: PUSHED"
-            echo "GitOps: UPDATED"
-            echo "========================================"
+
+            echo """
+            ==============================
+            DevSecOps Pipeline SUCCESS
+            ==============================
+            Tests: PASSED
+            SonarQube: PASSED
+            OWASP: PASSED
+            Docker: PASSED
+            Trivy: PASSED
+            DockerHub: PUSHED
+            GitOps: UPDATED
+            ==============================
+            """
         }
+
+
 
         failure {
-            echo "========================================"
-            echo "DevSecOps Pipeline FAILED"
-            echo "========================================"
-            echo "Check the failed stage above."
-            echo "========================================"
+
+            echo """
+            ==============================
+            DevSecOps Pipeline FAILED
+            ==============================
+            Check logs
+            ==============================
+            """
         }
     }
-}
 
+}
