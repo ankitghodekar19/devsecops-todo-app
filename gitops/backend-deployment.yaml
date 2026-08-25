@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: ankitghodekar/devsecops-api:32
+          image: ankitghodekar/devsecops-api:34
           ports:
             - containerPort: 3000
 
