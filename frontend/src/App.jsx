@@ -95,7 +95,7 @@ function App() {
   return (
     <div className="app">
       <div className="container">
-        <h1>DevSecOps Todo</h1>
+        <h1>DevSecOps Todo App</h1>
 
         <p className="subtitle">
           React + Node.js + MySQL

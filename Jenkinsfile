@@ -2,6 +2,10 @@ pipeline {
 
     agent any
 
+    triggers {
+        githubPush()
+    }
+
     environment {
         BACKEND_IMAGE  = "ankitghodekar/devsecops-api"
         FRONTEND_IMAGE = "ankitghodekar/devsecops-frontend"
@@ -20,10 +24,35 @@ pipeline {
         }
 
 
+        stage('Check Trigger') {
+            steps {
+                script {
+                    def lastCommitMessage = sh(
+                        script: 'git log -1 --pretty=%B',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Latest commit: ${lastCommitMessage}"
+
+                    if (lastCommitMessage.startsWith('Update images to build')) {
+                        echo "Jenkins GitOps commit detected."
+                        echo "Skipping this pipeline to prevent webhook loop."
+
+                        currentBuild.result = 'NOT_BUILT'
+                        currentBuild.description = 'Skipped Jenkins GitOps commit'
+                        error('Jenkins GitOps commit - skipping pipeline')
+                    }
+                }
+            }
+        }
+
+
         stage('Backend Test') {
             steps {
                 dir('app') {
                     sh '''
+                        echo "Running backend tests..."
+
                         npm install
                         npm test
                     '''
@@ -53,7 +82,9 @@ pipeline {
 
         stage('SonarQube Quality Gate') {
             steps {
+
                 timeout(time: 5, unit: 'MINUTES') {
+
                     waitForQualityGate abortPipeline: true
                 }
             }
@@ -70,6 +101,7 @@ pipeline {
                         echo "Running OWASP Dependency-Check..."
 
                         rm -rf dependency-check-report
+
                         mkdir -p dependency-check-report
 
                         ${dependencyCheckHome}/bin/dependency-check.sh \
@@ -88,6 +120,7 @@ pipeline {
 
             post {
                 always {
+
                     archiveArtifacts(
                         artifacts: 'dependency-check-report/*',
                         allowEmptyArchive: true
@@ -99,10 +132,16 @@ pipeline {
 
         stage('Frontend Build') {
             steps {
+
                 dir('frontend') {
+
                     sh '''
+                        echo "Building frontend..."
+
                         npm install
                         npm run build
+
+                        echo "Frontend build completed"
                     '''
                 }
             }
@@ -111,23 +150,30 @@ pipeline {
 
         stage('Docker Build') {
             steps {
+
                 sh '''
-                    echo "Building backend Docker image..."
+                    echo "================================"
+                    echo "Building Backend Docker Image"
+                    echo "================================"
 
                     docker build \
                         -t $BACKEND_IMAGE:$BUILD_NUMBER \
                         ./app
+
 
                     docker tag \
                         $BACKEND_IMAGE:$BUILD_NUMBER \
                         $BACKEND_IMAGE:latest
 
 
-                    echo "Building frontend Docker image..."
+                    echo "================================"
+                    echo "Building Frontend Docker Image"
+                    echo "================================"
 
                     docker build \
                         -t $FRONTEND_IMAGE:$BUILD_NUMBER \
                         ./frontend
+
 
                     docker tag \
                         $FRONTEND_IMAGE:$BUILD_NUMBER \
@@ -142,8 +188,11 @@ pipeline {
 
         stage('Trivy Security Scan') {
             steps {
+
                 sh '''
-                    echo "Scanning backend image..."
+                    echo "================================"
+                    echo "Trivy Backend Scan"
+                    echo "================================"
 
                     trivy image \
                         --severity HIGH,CRITICAL \
@@ -152,7 +201,9 @@ pipeline {
                         $BACKEND_IMAGE:$BUILD_NUMBER
 
 
-                    echo "Scanning frontend image..."
+                    echo "================================"
+                    echo "Trivy Frontend Scan"
+                    echo "================================"
 
                     trivy image \
                         --severity HIGH,CRITICAL \
@@ -179,7 +230,9 @@ pipeline {
                 ]) {
 
                     sh '''
-                        echo "Logging in to Docker Hub..."
+                        echo "================================"
+                        echo "Docker Hub Login"
+                        echo "================================"
 
                         echo "$DOCKER_PASSWORD" | docker login \
                             -u "$DOCKER_USERNAME" \
@@ -188,14 +241,20 @@ pipeline {
 
                         echo "Pushing backend image..."
 
-                        docker push $BACKEND_IMAGE:$BUILD_NUMBER
-                        docker push $BACKEND_IMAGE:latest
+                        docker push \
+                            $BACKEND_IMAGE:$BUILD_NUMBER
+
+                        docker push \
+                            $BACKEND_IMAGE:latest
 
 
                         echo "Pushing frontend image..."
 
-                        docker push $FRONTEND_IMAGE:$BUILD_NUMBER
-                        docker push $FRONTEND_IMAGE:latest
+                        docker push \
+                            $FRONTEND_IMAGE:$BUILD_NUMBER
+
+                        docker push \
+                            $FRONTEND_IMAGE:latest
 
 
                         docker logout
@@ -219,7 +278,9 @@ pipeline {
                 ]) {
 
                     sh '''
-                        echo "Updating GitOps images..."
+                        echo "================================"
+                        echo "Updating GitOps Manifests"
+                        echo "================================"
 
 
                         sed -i \
@@ -232,11 +293,13 @@ pipeline {
                             gitops/frontend-deployment.yaml
 
 
-                        echo "Updated backend image:"
+                        echo ""
+                        echo "Backend image:"
                         grep "image:" gitops/backend-deployment.yaml
 
 
-                        echo "Updated frontend image:"
+                        echo ""
+                        echo "Frontend image:"
                         grep "image:" gitops/frontend-deployment.yaml
 
 
@@ -260,6 +323,7 @@ pipeline {
                         git push origin main
 
 
+                        echo ""
                         echo "GitOps update completed"
                     '''
                 }
