@@ -1,5 +1,4 @@
-# 🚀 DevSecOps Todo Application
-
+# 🚀 DevSecOps CI/CD Pipeline & GitOps Deployment
 A hands-on **DevSecOps CI/CD and GitOps project** demonstrating an end-to-end software delivery workflow using Jenkins, SonarQube, OWASP Dependency-Check, Trivy, Docker, Docker Hub, Kubernetes, Argo CD, and Amazon EKS.
 
 The project demonstrates how application code can move from a developer Git push through automated testing and security checks, container image publishing, GitOps manifest updates, and finally **automatic deployment to Kubernetes through Argo CD**.
